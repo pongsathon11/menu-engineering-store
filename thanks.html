@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>ดาวน์โหลด — Menu Engineering System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1c2333;--muted:#667089;--line:#e7eaf1;--accent:#ff7a30;--star:#16a34a}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Prompt',system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:#f6f7fb;color:var(--ink);line-height:1.65;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 16px}
+.brand{font-weight:600;margin-bottom:22px;color:var(--muted)}
+.card{background:#fff;border-radius:18px;box-shadow:0 10px 30px rgba(20,30,55,.08);padding:34px 30px;max-width:560px;width:100%;text-align:center}
+.ic{font-size:46px;margin-bottom:8px}
+h1{font-size:24px;margin-bottom:6px}
+p{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:12px;font-weight:600;font-size:16px;text-decoration:none;border:none;cursor:pointer;margin-top:20px}
+.btn.primary{background:linear-gradient(90deg,var(--accent),#ff5f3a);color:#fff;box-shadow:0 6px 18px rgba(255,122,48,.32)}
+.btn.sm{padding:8px 14px;font-size:13.5px;margin-top:0;background:#f1f3f8;color:var(--ink)}
+.box{background:#f8f9fc;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:22px;text-align:left;font-size:14.5px}
+.box b{color:var(--ink)}
+.box ol{padding-left:20px;color:var(--muted)}
+.box li{margin:4px 0}
+.linkrow{display:flex;gap:8px;margin-top:8px;align-items:center}
+.linkrow input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:inherit;color:var(--muted)}
+.spin{width:38px;height:38px;border:4px solid #ffe1cc;border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;margin:6px auto 14px}
+@keyframes s{to{transform:rotate(360deg)}}
+.tag{display:inline-block;background:#e9f9ef;color:var(--star);font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:12px;margin-bottom:10px}
+a{color:var(--accent)}
+.foot{margin-top:24px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="brand">🍽️ Menu Engineering System</div>
+<div class="card" id="card"><div class="spin"></div><h1>กำลังตรวจสอบการชำระเงิน…</h1><p>กรุณารอสักครู่</p></div>
+<div class="foot"><a href="sale.html">กลับหน้าหลัก</a> · <a href="privacy.html">เงื่อนไขการใช้งาน</a></div>
+<script>
+const qs = new URLSearchParams(location.search);
+const sid = qs.get('session_id'), ref = qs.get('ref');
+const card = document.getElementById('card');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let tries = 0;
+function show(html){ card.innerHTML = html; }
+async function check(){
+  if (!sid && !ref) { show('<div class="ic">🔗</div><h1>ไม่พบข้อมูลคำสั่งซื้อ</h1><p>กรุณาเปิดลิงก์จากอีเมลใบแจ้งหนี้ หรือกลับไปหน้าราคา</p><a class="btn primary" href="sale.html#pricing">ไปหน้าราคา</a>'); return; }
+  tries++;
+  let d;
+  try { const r = await fetch('/api/order?' + (sid ? 'session_id=' + encodeURIComponent(sid) : 'ref=' + encodeURIComponent(ref)), {cache:'no-store'}); d = await r.json(); }
+  catch (e) { d = {error:'network'}; }
+  if (d.error && d.error !== 'network') {
+    show('<div class="ic">⚠️</div><h1>ตรวจสอบคำสั่งซื้อไม่สำเร็จ</h1><p>ลิงก์อาจไม่ถูกต้อง หรือระบบขัดข้องชั่วคราว ลองรีเฟรชหน้านี้อีกครั้ง ถ้ายังไม่ได้ ติดต่อร้านพร้อมอีเมลที่ใช้ชำระเงิน</p><button class="btn primary" onclick="location.reload()">ลองอีกครั้ง</button>'); return;
+  }
+  if (d.paid && d.expired) { show('<div class="ic">⏰</div><h1>ลิงก์ดาวน์โหลดหมดอายุแล้ว</h1><p>กรุณาติดต่อร้านพร้อมอีเมลที่ใช้ซื้อ เพื่อขอลิงก์ใหม่</p>'); return; }
+  if (d.paid) {
+    const keep = d.emailLink ? location.origin + d.emailLink : location.href;
+    show(`<div class="ic">🎉</div><span class="tag">ชำระเงินสำเร็จ</span><h1>ขอบคุณที่สั่งซื้อ ${esc(d.planName || '')}</h1>
+      <p>ไฟล์พร้อมดาวน์โหลดแล้ว${d.email ? ' · ลิขสิทธิ์ใช้งานสำหรับ ' + esc(d.email) : ''}</p>
+      <a class="btn primary" href="${esc(d.downloadUrl)}">⬇ ดาวน์โหลดไฟล์</a>
+      <div class="box"><b>📧 ลิงก์ดาวน์โหลดถูกส่งไปในอีเมลใบแจ้งหนี้จาก Stripe แล้ว</b> (ใช้ได้ 1 ปี) หรือบันทึกลิงก์นี้ไว้:
+        <div class="linkrow"><input id="keep" readonly value="${esc(keep)}"><button class="btn sm" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('keep').value);this.textContent='คัดลอกแล้ว ✓'">คัดลอก</button></div></div>
+      <div class="box"><b>เริ่มใช้งาน</b><ol><li>ดับเบิลคลิกไฟล์ที่ดาวน์โหลด เปิดด้วย Chrome / Edge / Safari</li><li>ลองดูทุกหน้ากับข้อมูลตัวอย่างก่อน</li><li>กด "เริ่มใช้ข้อมูลร้านคุณ" แล้วเพิ่มหรือนำเข้าเมนูและยอดขาย</li><li>สำรองข้อมูลเป็นไฟล์ทุกสัปดาห์ (ตั้งค่า → สำรองข้อมูล)</li></ol></div>`);
+    return;
+  }
+  if (tries > 40) { show('<div class="ic">⏳</div><h1>ยังไม่ได้รับการยืนยันการชำระเงิน</h1><p>ถ้าชำระแล้ว ลิงก์ดาวน์โหลดจะอยู่ในอีเมลใบแจ้งหนี้จาก Stripe ภายในไม่กี่นาที หรือรีเฟรชหน้านี้อีกครั้ง</p><button class="btn primary" onclick="location.reload()">ตรวจสอบอีกครั้ง</button>'); return; }
+  show('<div class="spin"></div><h1>รอการยืนยันการชำระเงิน…</h1><p>ถ้าชำระด้วยพร้อมเพย์ อาจใช้เวลาไม่กี่วินาที กรุณาอย่าปิดหน้านี้</p>');
+  setTimeout(check, 3000);
+}
+check();
+</script>
+</body>
+</html>

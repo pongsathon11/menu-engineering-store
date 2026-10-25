@@ -1,0 +1,6 @@
+/products/*
+  X-Robots-Tag: noindex
+/functions/*
+  X-Robots-Tag: noindex
+/lib/*
+  X-Robots-Tag: noindex
