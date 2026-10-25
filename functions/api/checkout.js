@@ -21,6 +21,8 @@ export async function onRequestGet({ request, env }) {
     success_url: `${origin}/thanks.html?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/sale.html#pricing`,
     allow_promotion_codes: 'true',
+    'branding_settings[display_name]': env.BRAND_NAME || 'datason',
+    'branding_settings[button_color]': '#ff7a30',
     'metadata[plan]': plan,
     'metadata[ref]': ref,
     'payment_intent_data[metadata][plan]': plan,
