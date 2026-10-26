@@ -15,6 +15,7 @@ export async function onRequestGet({ request, env }) {
       plan: o.plan || null, planName: P?.name || null, email: maskEmail(o.email),
       downloadUrl: o.paid && P ? '/api/download?' + q : null,
       emailLink: o.ref ? '/thanks.html?ref=' + o.ref : null,
+      ref: o.paid ? (o.ref || null) : null,
     });
   } catch (e) { return json({ error: 'lookup_failed' }, 502); }
 }

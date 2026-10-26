@@ -19,6 +19,11 @@ p{color:var(--muted)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:12px;font-weight:600;font-size:16px;text-decoration:none;border:none;cursor:pointer;margin-top:20px}
 .btn.primary{background:linear-gradient(90deg,var(--accent),#ff5f3a);color:#fff;box-shadow:0 6px 18px rgba(255,122,48,.32)}
 .btn.sm{padding:8px 14px;font-size:13.5px;margin-top:0;background:#f1f3f8;color:var(--ink)}
+.btn.outline{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btns .btn{margin-top:20px}
+.up{background:linear-gradient(135deg,#fff1e8,#fff);border:1px solid #ffd2b8;border-radius:12px;padding:14px 16px;margin-top:22px;text-align:left;font-size:14.5px}
+.up .btn{margin-top:10px;padding:10px 18px;font-size:14.5px}
 .box{background:#f8f9fc;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:22px;text-align:left;font-size:14.5px}
 .box b{color:var(--ink)}
 .box ol{padding-left:20px;color:var(--muted)}
@@ -41,7 +46,15 @@ const qs = new URLSearchParams(location.search);
 const sid = qs.get('session_id'), ref = qs.get('ref');
 const card = document.getElementById('card');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MANUAL = '/manual/MenuEngineering_Manual.pdf';
 let tries = 0;
+async function showUpgrade(ref){
+  let diff = 600;
+  try { const p = await (await fetch('/api/plans')).json(); diff = Math.max(20, p.plans.pro.price - p.plans.basic.price); } catch (e) {}
+  document.getElementById('upBox').innerHTML = `<div class="up"><b>⭐ อัปเกรดเป็น Pro จ่ายแค่ส่วนต่าง ฿${diff.toLocaleString('th-TH')}</b><br>
+    เพิ่มแผนปฏิบัติ + ราคาแนะนำ, Basket Pairing จากบิล POS, สูตร & ต้นทุนวัตถุดิบ และพยากรณ์การเตรียม · ย้ายข้อมูลจาก Basic ได้ด้วยไฟล์สำรอง<br>
+    <a class="btn primary" href="/api/checkout?plan=upgrade&from=${encodeURIComponent(ref)}">อัปเกรดเป็น Pro</a></div>`;
+}
 function show(html){ card.innerHTML = html; }
 async function check(){
   if (!sid && !ref) { show('<div class="ic">🔗</div><h1>ไม่พบข้อมูลคำสั่งซื้อ</h1><p>กรุณาเปิดลิงก์จากอีเมลใบแจ้งหนี้ หรือกลับไปหน้าราคา</p><a class="btn primary" href="sale.html#pricing">ไปหน้าราคา</a>'); return; }
@@ -57,10 +70,12 @@ async function check(){
     const keep = d.emailLink ? location.origin + d.emailLink : location.href;
     show(`<div class="ic">🎉</div><span class="tag">ชำระเงินสำเร็จ</span><h1>ขอบคุณที่สั่งซื้อ ${esc(d.planName || '')}</h1>
       <p>ไฟล์พร้อมดาวน์โหลดแล้ว${d.email ? ' · ลิขสิทธิ์ใช้งานสำหรับ ' + esc(d.email) : ''}</p>
-      <a class="btn primary" href="${esc(d.downloadUrl)}">⬇ ดาวน์โหลดไฟล์</a>
-      <div class="box"><b>📧 ลิงก์ดาวน์โหลดถูกส่งไปในอีเมลใบแจ้งหนี้จาก Stripe แล้ว</b> (ใช้ได้ 1 ปี) หรือบันทึกลิงก์นี้ไว้:
+      <div class="btns"><a class="btn primary" href="${esc(d.downloadUrl)}">⬇ ดาวน์โหลดโปรแกรม (.html)</a><a class="btn outline" href="${MANUAL}" download>📘 ดาวน์โหลดคู่มือ (PDF)</a></div>
+      <div class="box"><b>📧 ลิงก์ดาวน์โหลดโปรแกรมและคู่มืออยู่ในอีเมลใบแจ้งหนี้จาก Stripe</b> (ใช้ได้ 1 ปี) หรือบันทึกลิงก์นี้ไว้:
         <div class="linkrow"><input id="keep" readonly value="${esc(keep)}"><button class="btn sm" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('keep').value);this.textContent='คัดลอกแล้ว ✓'">คัดลอก</button></div></div>
-      <div class="box"><b>เริ่มใช้งาน</b><ol><li>ดับเบิลคลิกไฟล์ที่ดาวน์โหลด เปิดด้วย Chrome / Edge / Safari</li><li>ลองดูทุกหน้ากับข้อมูลตัวอย่างก่อน</li><li>กด "เริ่มใช้ข้อมูลร้านคุณ" แล้วเพิ่มหรือนำเข้าเมนูและยอดขาย</li><li>สำรองข้อมูลเป็นไฟล์ทุกสัปดาห์ (ตั้งค่า → สำรองข้อมูล)</li></ol></div>`);
+      <div class="box"><b>เริ่มใช้งาน</b><ol><li>ดับเบิลคลิกไฟล์ที่ดาวน์โหลด เปิดด้วย Chrome / Edge / Safari</li><li>ลองดูทุกหน้ากับข้อมูลตัวอย่างก่อน</li><li>กด "เริ่มใช้ข้อมูลร้านคุณ" แล้วเพิ่มหรือนำเข้าเมนูและยอดขาย</li><li>สำรองข้อมูลเป็นไฟล์ทุกสัปดาห์ (ตั้งค่า → สำรองข้อมูล)</li></ol>รายละเอียดทุกหน้าอยู่ในคู่มือ PDF</div>
+      <div id="upBox"></div>`);
+    if (d.plan === 'basic' && d.ref) showUpgrade(d.ref);
     return;
   }
   if (tries > 40) { show('<div class="ic">⏳</div><h1>ยังไม่ได้รับการยืนยันการชำระเงิน</h1><p>ถ้าชำระแล้ว ลิงก์ดาวน์โหลดจะอยู่ในอีเมลใบแจ้งหนี้จาก Stripe ภายในไม่กี่นาที หรือรีเฟรชหน้านี้อีกครั้ง</p><button class="btn primary" onclick="location.reload()">ตรวจสอบอีกครั้ง</button>'); return; }

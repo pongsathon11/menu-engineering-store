@@ -272,6 +272,7 @@ const CONFIG = {
   upgradeUrl: 'https://menu-engineering-store.pages.dev/sale.html#pricing',        // where the "Upgrade to Pro" button goes
   buyUrl: 'sale.html#pricing',                // demo: where "Buy" button goes
   supportText: 'datason',              // shown in footer
+  manualUrl: 'manual/MenuEngineering_Manual.pdf',          // user manual (PDF)
 };
 /* stamped with the buyer's email by the store at download time (fixed 100-byte slot) */
 const LICENSEE_RAW = '@@LICENSEE@@________________________________________________________________________________________';
@@ -491,8 +492,8 @@ function renderShell(){
   b.className = 'ed-badge ' + (DEMO ? 'ed-demo' : PRO ? 'ed-pro' : 'ed-basic');
   b.textContent = DEMO ? 'DEMO · PRO' : PRO ? 'PRO' : 'BASIC';
   document.getElementById('sideFoot').innerHTML = DEMO
-    ? `${tt('เวอร์ชันสาธิต · ข้อมูลตัวอย่าง','Demo version · sample data')}<br><a href="${esc(CONFIG.buyUrl)}" target="_blank" rel="noopener">${tt('ซื้อเวอร์ชันเต็ม →','Get the full version →')}</a>`
-    : `${esc(CONFIG.supportText)} · v${APP_VERSION} ${PRO ? 'Pro' : 'Basic'}<br>${LICENSEE ? tt('ลิขสิทธิ์ใช้งาน: ','Licensed to: ') + esc(LICENSEE) + '<br>' : ''}${tt('ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น','Data stays in this browser only')}`;
+    ? `${tt('เวอร์ชันสาธิต · ข้อมูลตัวอย่าง','Demo version · sample data')} · <a href="${esc(CONFIG.manualUrl)}" target="_blank" rel="noopener">${tt('คู่มือ','Manual')}</a><br><a href="${esc(CONFIG.buyUrl)}" target="_blank" rel="noopener">${tt('ซื้อเวอร์ชันเต็ม →','Get the full version →')}</a>`
+    : `<a href="${esc(CONFIG.manualUrl)}" target="_blank" rel="noopener">📘 ${tt('คู่มือการใช้งาน','User manual')}</a><br>${esc(CONFIG.supportText)} · v${APP_VERSION} ${PRO ? 'Pro' : 'Basic'}<br>${LICENSEE ? tt('ลิขสิทธิ์ใช้งาน: ','Licensed to: ') + esc(LICENSEE) + '<br>' : ''}${tt('ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น','Data stays in this browser only')}`;
   const R = currentRange();
   const showRange = !['data','settings','recipe','forecast'].includes(page);
   const presets = [['7', tt('7 วันล่าสุด','Last 7 days')], ['30', tt('30 วันล่าสุด','Last 30 days')], ['90', tt('90 วันล่าสุด','Last 90 days')], ['all', tt('ทั้งหมด','All time')], ['custom', tt('กำหนดเอง','Custom')]];
@@ -587,14 +588,22 @@ function download(name, content, type = 'text/csv;charset=utf-8'){
   a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-/* accepts 2026-05-01, 01/05/2026, 1/5/2569 (B.E.), 2026/05/01, Excel serials, with optional time */
+/* accepts 2026-05-01, 01/05/2026, 1/5/2569 (B.E.), 2026/05/01, Excel serials, with optional time.
+   d/m/y vs m/d/y is detected per file (detectDateOrder) — Thai default is d/m/y */
+let dateOrder = 'dmy';
+function detectDateOrder(values){
+  let dmy = 0, mdy = 0;
+  values.forEach(v => { const mt = String(v || '').trim().split(/[ T]/)[0].match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/); if (!mt) return; if (+mt[1] > 12) dmy++; else if (+mt[2] > 12) mdy++; });
+  dateOrder = mdy > dmy ? 'mdy' : 'dmy';
+  return dateOrder;
+}
 function parseDate(v){
   if (v == null) return null; let s = String(v).trim(); if (!s) return null;
   if (/^\d{5}(\.\d+)?$/.test(s)) { const d = new Date(Date.UTC(1899, 11, 30) + parseFloat(s) * 864e5); return d.toISOString().slice(0, 10); }
   s = s.split(/[ T]/)[0];
   let y, m, d, mt;
   if ((mt = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/))) { y = +mt[1]; m = +mt[2]; d = +mt[3]; }
-  else if ((mt = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/))) { d = +mt[1]; m = +mt[2]; y = +mt[3]; if (y < 100) y = y > 40 ? y + 2500 : y + 2000; }
+  else if ((mt = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/))) { if (dateOrder === 'mdy') { m = +mt[1]; d = +mt[2]; } else { d = +mt[1]; m = +mt[2]; } y = +mt[3]; if (y < 100) y = y > 40 ? y + 2500 : y + 2000; }
   else return null;
   if (y > 2400) y -= 543;
   if (m < 1 || m > 12 || d < 1 || d > 31) return null;
@@ -612,7 +621,18 @@ const num = v => { const n = parseFloat(String(v ?? '').replace(/[,฿$\s]/g, ''
 function pickFile(accept, cb){
   const inp = document.getElementById('fileInput');
   inp.accept = accept; inp.value = '';
-  inp.onchange = e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => cb(rd.result, f.name); rd.readAsText(f, 'utf-8'); };
+  inp.onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const buf = new Uint8Array(rd.result); let text;
+      /* Excel on Thai Windows saves "CSV" as Windows-874 (TIS-620), not UTF-8 → fall back so Thai names still match */
+      try { text = new TextDecoder('utf-8', {fatal:true}).decode(buf); }
+      catch(err) { try { text = new TextDecoder('windows-874').decode(buf); } catch(e2) { text = new TextDecoder('utf-8').decode(buf); } }
+      cb(text, f.name);
+    };
+    rd.readAsArrayBuffer(f);
+  };
   inp.click();
 }
 
@@ -1029,6 +1049,7 @@ function importCSV(kind){
       const c = {date:col(['date','วันที่']), menu:col(['menu','menu_id','item','เมนู','รายการ','สินค้า','name']), qty:col(['qty','quantity','จำนวน']), reason:col(['reason','สาเหตุ'])};
       if (c.date < 0 || c.menu < 0) { toast(tt('ต้องมีคอลัมน์ date และ menu','Columns "date" and "menu" are required'), 3500); return; }
       const arr = db[kind];
+      detectDateOrder(data.map(r => r[c.date]));
       data.forEach((r, i) => {
         const date = parseDate(r[c.date]), m = matchMenu(r[c.menu]), qty = c.qty >= 0 ? num(r[c.qty]) : 1;
         if (!date || !m || !(qty > 0)) { skipped.push(i + 2); return; }
@@ -1081,7 +1102,7 @@ PAGE_FN.settings = function(){
     </div>
   </div>
   <div style="margin-top:16px;display:flex;gap:8px"><button class="btn primary" onclick="saveSettings()">${tt('บันทึกการตั้งค่า','Save settings')}</button></div>
-  <p class="sub-txt" style="margin-top:14px">Menu Engineering System v${APP_VERSION} · ${PRO ? 'Pro' : 'Basic'} edition${DEMO ? ' (demo)' : ''} · ${esc(CONFIG.supportText)}</p>`;
+  <p class="sub-txt" style="margin-top:14px">📘 <a href="${esc(CONFIG.manualUrl)}" target="_blank" rel="noopener">${tt('เปิดคู่มือการใช้งาน (PDF)','Open the user manual (PDF)')}</a> · Menu Engineering System v${APP_VERSION} · ${PRO ? 'Pro' : 'Basic'} edition${DEMO ? ' (demo)' : ''} · ${esc(CONFIG.supportText)}</p>`;
 };
 function saveSettings(){
   const s = S(); const v = id => document.getElementById(id)?.value;
@@ -1466,12 +1487,13 @@ function renderPos(){
   const steps = `<div class="steps">${[tt('1 จับคู่คอลัมน์','1 Map columns'), tt('2 จับคู่ชื่อเมนู','2 Match items'), tt('3 ยืนยัน','3 Confirm')].map((s, i) => `<span class="${pos.step === i + 1 ? 'on' : ''}">${s}</span>`).join('')}</div>`;
   if (pos.step === 1) {
     const okMap = map.bill >= 0 && map.date >= 0 && map.item >= 0;
+    if (map.date >= 0) detectDateOrder(data.map(r => r[map.date]));
     openModal(`<h3>⬆ ${tt('นำเข้าบิลจาก POS','Import POS bills')} <span class="sub-txt">${esc(pos.fname)} · ${fmt(data.length)} ${tt('แถว','rows')}</span></h3>${steps}
-      <p class="sub-txt" style="margin-bottom:10px">${tt('ไฟล์ CSV หนึ่งแถว = หนึ่งรายการในบิล (บิลเดียวมีหลายแถวได้) · Excel ให้ Save As เป็น CSV UTF-8 ก่อน','CSV with one row per line item (a bill can span many rows) · from Excel, Save As CSV UTF-8 first')}</p>
+      <p class="sub-txt" style="margin-bottom:10px">${tt('ไฟล์ CSV หนึ่งแถว = หนึ่งรายการในบิล (บิลเดียวมีหลายแถวได้) · จาก Excel ให้ Save As เป็น CSV (รองรับทั้ง CSV UTF-8 และ CSV ภาษาไทยแบบเดิม)','CSV with one row per line item (a bill can span many rows) · from Excel, Save As CSV (UTF-8 or Thai Windows-874 both work)')}</p>
       <div class="frow"><div class="field"><label>${tt('เลขที่บิล','Bill number')} *</label>${sel('bill', true)}</div><div class="field"><label>${tt('วันที่','Date')} *</label>${sel('date', true)}</div></div>
       <div class="frow"><div class="field"><label>${tt('ชื่อเมนู / รหัส','Item name / ID')} *</label>${sel('item', true)}</div><div class="field"><label>${tt('จำนวน','Quantity')}</label>${sel('qty', false)}<div class="hint">${tt('ถ้าไม่มี นับเป็น 1','Defaults to 1')}</div></div></div>
       <div class="frow"><div class="field"><label>${tt('เวลา','Time')}</label>${sel('time', false)}</div></div>
-      <h3 style="font-size:12.5px;margin:6px 0">${tt('ตัวอย่างข้อมูล','Preview')}</h3>
+      <h3 style="font-size:12.5px;margin:6px 0">${tt('ตัวอย่างข้อมูล','Preview')} <span class="sub-txt">· ${tt('รูปแบบวันที่ที่ตรวจพบ','detected date format')}: ${dateOrder === 'mdy' ? tt('เดือน/วัน/ปี','month/day/year') : tt('วัน/เดือน/ปี','day/month/year')}</span></h3>
       <div class="tbl-wrap"><table><thead><tr><th>${tt('บิล','Bill')}</th><th>${tt('วันที่ (อ่านได้)','Date (parsed)')}</th><th>${tt('เมนู','Item')}</th><th class="num">${tt('จำนวน','Qty')}</th></tr></thead><tbody>
       ${data.slice(0, 5).map(r => `<tr><td>${esc(r[map.bill] ?? '')}</td><td>${map.date >= 0 ? (parseDate(r[map.date]) ? dispDate(parseDate(r[map.date])) : '<span class="down">' + esc(r[map.date]) + ' ✗</span>') : ''}</td><td>${esc(r[map.item] ?? '')}</td><td class="num">${map.qty >= 0 ? esc(r[map.qty]) : 1}</td></tr>`).join('')}</tbody></table></div>
       <div class="modal-actions"><button class="btn" onclick="closeModal()">${tt('ยกเลิก','Cancel')}</button><button class="btn primary" ${okMap ? '' : 'disabled'} onclick="posStep2()">${tt('ถัดไป','Next')} →</button></div>`, true);
@@ -1503,7 +1525,8 @@ function renderPos(){
 }
 function posStep2(){ pos.step = 2; renderPos(); }
 function posStep3(){
-  const {data, map} = pos; const get = n => { const k = String(n || '').trim().toLowerCase(); if (pos.alias[k] !== undefined) return pos.alias[k] ? menuById(pos.alias[k]) : null; return matchMenu(n); };
+  const {data, map} = pos;
+  detectDateOrder(data.map(r => r[map.date])); const get = n => { const k = String(n || '').trim().toLowerCase(); if (pos.alias[k] !== undefined) return pos.alias[k] ? menuById(pos.alias[k]) : null; return matchMenu(n); };
   const B = new Map(); let skipped = 0, dishes = 0; const dates = new Set(); let min = null, max = null;
   data.forEach(r => {
     const date = parseDate(r[map.date]); const m = get(r[map.item]); const qty = map.qty >= 0 ? num(r[map.qty]) : 1; const no = String(r[map.bill] || '').trim();
